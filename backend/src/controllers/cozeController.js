@@ -16,10 +16,10 @@ async function recognition(ctx) {
     if (!apiKey) {
       throw new Error('API key not found')
     }
-    
-    console.log('API Key found:', apiKey.length > 0)
-    console.log('Request params:', JSON.stringify(params, null, 2))
-    
+
+    // img 是 base64 大字符串，只记长度，别把整张图打进日志
+    console.log('Recognition request, image size:', img ? String(img).length : 0)
+
     const res = await axios({
       method: 'post',
       url: 'https://r85vf8qf77.coze.site/run',
@@ -27,10 +27,12 @@ async function recognition(ctx) {
         'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json'
       },
-      data: params
+      data: params,
+      timeout: 60000 // 识图工作流耗时较长，给到 60 秒
     })
-    
-    console.log('Coze API response:', JSON.stringify(res.data, null, 2))
+
+    // 响应里可能带 base64 语音/文本，同样只记结构不记全文
+    console.log('Coze API response keys:', Object.keys(res.data || {}))
     
     ctx.body = {
       code: 1,

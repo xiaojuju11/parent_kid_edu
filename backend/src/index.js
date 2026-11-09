@@ -14,6 +14,22 @@ const cozeRoutes = require('./routes/coze-api.js')
 const deepseekRoutes = require('./routes/deepseek-api.js')
 
 const app = new Koa()
+
+// 全局错误兜底：任何中间件/控制器里 throw 出来的异常（比如数据库连接失败）
+// 都统一转成 JSON 响应，避免 Koa 默认返回裸文本 500，前端拿不到 message 字段
+app.use(async (ctx, next) => {
+  try {
+    await next()
+  } catch (error) {
+    console.error('Unhandled error on', ctx.method, ctx.url, ':', error.message)
+    ctx.status = 500
+    ctx.body = {
+      code: 0,
+      message: '服务器内部错误，请稍后重试'
+    }
+  }
+})
+
 app.use(cors());
 
 // 测试接口
@@ -23,7 +39,7 @@ const router = new Router({
 router.get('/test', (ctx) => {
   ctx.body = {
     status: 'ok',
-    mesaage: 'Koa backend is running'
+    message: 'Koa backend is running'
   }
 })
 

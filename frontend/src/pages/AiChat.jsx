@@ -7,17 +7,26 @@ import { useNavigate } from 'react-router-dom'
 class HandleMessages{
   constructor(){
     this.messages = []
+    this.nextId = 1
   }
   createMessage = (id, role, content, timestamp) => {
     return { id, role, content, timestamp }
   }
-  initMessages = () => {
-    this.messages.push(this.createMessage(Date.now(), 'ai', '你好，我是智能对话助手，有什么我可以帮助你的吗？', new Date().toLocaleString()))
-  }
-  addMessage = (message) => {
+  addMessage = (role, content) => {
+    // 用自增 id，避免同一毫秒内连发两条消息 key 冲突
+    const message = this.createMessage(this.nextId++, role, content, new Date().toLocaleString())
     this.messages.push(message)
+    return message
   }
   getMessages = () => this.messages
+  // 组装发给后端的多轮上下文（不含欢迎语）：
+  // 前端叫 'ai'，OpenAI 协议里叫 'assistant'，这里做一次角色名转换
+  getChatHistory = () => {
+    return this.messages.map(({ role, content }) => ({
+      role: role === 'ai' ? 'assistant' : role,
+      content
+    }))
+  }
 }
 
 export default function AiChat() {
@@ -31,27 +40,36 @@ export default function AiChat() {
   useEffect(() => {
     msg.current = new HandleMessages()
     // msg.current.initMessages() 
-    setFlag(flag + 1)
+    setFlag(f => f + 1)
   }, [])
 
   const handleSendMessage = async() => {
     const content = textareaRef.current.value.trim()
-    if (!content) return
-    
+    // 发送中或输入为空时直接忽略，防止重复提交
+    if (!content || isLoading) return
+
     // 显示用户的输入
-    const userMessage = msg.current.createMessage(Date.now(), 'user', content, new Date().toLocaleString())
-    msg.current.addMessage(userMessage)
+    msg.current.addMessage('user', content)
     setFlag(flag + 1)
     textareaRef.current.value = ''
 
     // 发请求
     setIsLoading(true)
-    const res = await axios.post('/api/deepseek/chat', {
-      message: content
-    })
-    const aiMessage = msg.current.createMessage(Date.now(), 'ai', res.data.message, new Date().toLocaleString())
-    msg.current.addMessage(aiMessage)
-    setIsLoading(false)
+    try {
+      // AI 回复常超过全局默认的 5 秒超时，这里单独放宽到 60 秒；
+      // 携带完整聊天历史，让 AI 记住上下文，而不是每次都当新对话处理
+      const res = await axios.post('/api/deepseek/chat', {
+        messages: msg.current.getChatHistory()
+      }, { timeout: 60000 })
+      msg.current.addMessage('ai', res.data.message)
+    } catch {
+      // 请求拦截器已经弹了 Toast，这里再把对话流补一条提示，
+      // 避免失败后界面静默无反馈、loading 永远不消失
+      msg.current.addMessage('ai', '抱歉，这条消息没能收到回复，请稍后重试')
+    } finally {
+      setIsLoading(false)
+    }
+    setFlag(f => f + 1)
   }
 
   return (
