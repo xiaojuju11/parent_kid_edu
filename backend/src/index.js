@@ -1,3 +1,10 @@
+// 先加载 .env，再 require 其它模块：否则 config/auth.js 等模块读到的
+// process.env 还是空的（JWT_SECRET 之类的配置会失效）。
+const dotenv = require('dotenv')
+dotenv.config({
+  path: ['.env.local', '.env']
+})
+
 const Koa = require('koa')
 const Router = require('koa-router')
 const cors = require('@koa/cors');
@@ -5,11 +12,6 @@ const bodyParser = require('koa-bodyparser')
 const authRoutes = require('./routes/authRoutes.js')
 const cozeRoutes = require('./routes/coze-api.js')
 const deepseekRoutes = require('./routes/deepseek-api.js')
-const dotenv = require('dotenv')
-
-dotenv.config({
-  path: ['.env.local', '.env']
-})
 
 const app = new Koa()
 app.use(cors());

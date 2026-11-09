@@ -202,6 +202,10 @@ npm install
 # 端口与服务
 PORT=3000
 
+# JWT 签名密钥（不配置时回退到开发默认值，生产环境务必设置）
+JWT_SECRET=change_me_in_production
+JWT_EXPIRES_IN=7d
+
 # 数据库配置（根据实际情况填写）
 DB_HOST=localhost
 DB_PORT=3306
@@ -214,6 +218,11 @@ VITE_COZE_IMAGE_TO_TEXT_AND_VOICE=your_coze_token
 
 # DeepSeek API Key（用于智能对话）
 VITE_DEEPSEEK_API_KEY=your_deepseek_api_key
+```
+
+运行后端单元测试（无需数据库，覆盖资料字段白名单与密码校验）：
+```bash
+npm test
 ```
 
 启动后端开发服务：

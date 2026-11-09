@@ -21,12 +21,16 @@ async function findUserById(id) {
   return rows[0]
 }
 
+// 资料更新只允许这两列；id / password_hash 必须走专用函数，避免越权或绕过加密
+const PROFILE_COLUMNS = ['avatar', 'nickname']
+
 async function updateUserInfo (params, id) {
-  const allKeys = ['id', 'avatar', 'nickname', 'password_hash']
-  const currentkeys = Object.keys(params)  // ['avatar']
-  
+  const currentkeys = Object.keys(params || {})  // ['avatar']
+  if (currentkeys.length === 0) {
+    throw new Error('参数错误')
+  }
   currentkeys.forEach((item) => {
-    if (!allKeys.includes(item)) {
+    if (!PROFILE_COLUMNS.includes(item)) {
       throw new Error('参数错误')
     }
   })
@@ -38,10 +42,20 @@ async function updateUserInfo (params, id) {
   return res
 }
 
+// 单独更新密码：只能改 password_hash 这一列，且必须传入 bcrypt 后的值
+async function updatePasswordHash (id, passwordHash) {
+  if (!passwordHash) {
+    throw new Error('密码不能为空')
+  }
+  const [res] = await db.execute('UPDATE users SET password_hash = ? WHERE id = ?', [passwordHash, id])
+  return res
+}
+
 
 module.exports = {
   findUserByPhone,
   createUser,
   findUserById,
-  updateUserInfo
+  updateUserInfo,
+  updatePasswordHash
 }

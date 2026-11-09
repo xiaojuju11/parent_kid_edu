@@ -1,7 +1,8 @@
 const bcrypt = require('bcrypt')
-const jwt = require('jsonwebtoken')
-const { findUserByPhone, createUser, findUserById, updateUserInfo } = require('../models/userModel.js')
+const { findUserByPhone, createUser, findUserById, updateUserInfo, updatePasswordHash } = require('../models/userModel.js')
 const { generateCaptcha, verifyCaptcha } = require('../utils/captcha.js')
+const { signToken } = require('../config/auth.js')
+const { buildProfileUpdate, validatePasswordChange } = require('../utils/profile.js')
 
 
 async function login(ctx) {
@@ -30,7 +31,7 @@ async function login(ctx) {
   }
 
   // 生成一个 token
-  const token = jwt.sign({ id: user.id, phone: user.phone }, '666', { expiresIn: '7d' })
+  const token = signToken({ id: user.id, phone: user.phone })
 
   ctx.body = {
     message: '登录成功',
@@ -131,50 +132,60 @@ async function register(ctx) {
 async function getUserInfo(ctx) {
   const id = ctx.userId
   try {
-    const res = await findUserById(id)
-    console.log('User info from database:', res)
-    
-    const data = {
-      code: 1,
-      id: res.id,
-      create_time: res.create_time,
-      phone: res.phone,
-      nickname: res.nickname,
-      avatar: res.avatar
+    const user = await findUserById(id)
+    if (!user) {
+      ctx.status = 404
+      ctx.body = {
+        code: 0,
+        message: '用户不存在'
+      }
+      return
     }
-    ctx.body = data
+
+    ctx.body = {
+      code: 1,
+      id: user.id,
+      create_time: user.create_time,
+      phone: user.phone,
+      nickname: user.nickname,
+      avatar: user.avatar
+    }
   } catch (error) {
     console.error('Get user info error:', error)
-    ctx.status = 400
+    ctx.status = 500
     ctx.body = {
       code: 0,
-      mesaage: '查找用户数据失败'
+      message: '查找用户数据失败'
     }
   }
 }
 
-// 更新用户信息
+// 更新用户资料（头像 / 昵称）：只接受白名单字段，禁止改 id、password_hash 等
 async function updateUser(ctx) {
   const id = ctx.userId
-  const params = ctx.request.body
-  
-  console.log('Update user params:', params)
-  console.log('User ID:', id)
+  const { fields, error } = buildProfileUpdate(ctx.request.body)
+
+  if (error) {
+    ctx.status = 400
+    ctx.body = {
+      code: 0,
+      message: error
+    }
+    return
+  }
 
   try {
-    const res = await updateUserInfo(params, id)
-    console.log('Update result:', res)
-    
+    const res = await updateUserInfo(fields, id)
     if (res.affectedRows) {
       ctx.body = {
         code: 1,
         message: '更新成功'
       }
     } else {
-      ctx.status = 400
+      ctx.status = 404
       ctx.body = {
         code: 0,
-        message: '更新失败'
+        message: '用户不存在'
       }
     }
   } catch (error) {
@@ -182,7 +193,7 @@ async function updateUser(ctx) {
     ctx.status = 500
     ctx.body = {
       code: 0,
-      message: error.message
+      message: '更新失败'
     }
   }
 
@@ -191,17 +202,32 @@ async function updateUser(ctx) {
 // 更新密码
 async function updatePassword(ctx) {
   const id = ctx.userId
-  const { oldPassword, newPassword } = ctx.request.body
+  const { oldPassword, newPassword } = ctx.request.body || {}
+
+  const validationError = validatePasswordChange({ oldPassword, newPassword })
+  if (validationError) {
+    ctx.status = 400
+    ctx.body = { message: validationError, code: 0 }
+    return
+  }
+
   try {
     const user = await findUserById(id)
+    if (!user) {
+      ctx.status = 404
+      ctx.body = { message: '用户不存在', code: 0 }
+      return
+    }
+
     const ok = await bcrypt.compare(oldPassword, user.password_hash)
     if (!ok) {
       ctx.status = 400
       ctx.body = { message: '旧密码错误', code: 0 }
       return
     }
-    const password_hash = await bcrypt.hash(newPassword, 10)
-    const res = await updateUserInfo({ password_hash }, id)
+
+    const passwordHash = await bcrypt.hash(newPassword, 10)
+    const res = await updatePasswordHash(id, passwordHash)
     if (res.affectedRows) {
       ctx.body = {
         code: 1,
@@ -215,10 +241,11 @@ async function updatePassword(ctx) {
       }
     }
   } catch (error) {
+    console.error('Update password error:', error)
     ctx.status = 500
     ctx.body = {
       code: 0,
-      message: error.message
+      message: '密码更新失败'
     }
   }
 }
