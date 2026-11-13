@@ -156,7 +156,7 @@ export default function AccountSetting() {
         actions={actions}
         onClose={() => setVisible(false)}
         cancelText='取消'
-        onAction={(action, index) => {
+        onAction={(action) => {
           if (action.key === 'select') {
             // 从相册选择
             setVisible(false)

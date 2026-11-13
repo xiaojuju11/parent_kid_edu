@@ -74,7 +74,7 @@ export default function MinePage() {
         actions={actions}
         cancelText='取消'
         onClose={() => setVisible(false)}
-        onAction={(action, index) => {
+        onAction={(action) => {
           // console.log(action, index);
           if (action.key === 'confirm') {
             // 确认退出登录

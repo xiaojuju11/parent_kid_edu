@@ -13,14 +13,28 @@ export default function Register({ changeActiveTab }) {
   const [captchaSvg, setCaptchaSvg] = useState('')
   const [loading, setLoading] = useState(false)
 
-  async function loadCaptcha() {
-    const res = await axios.get('/api/auth/captcha')
-    setCaptchaId(res.data.captchaId)
-    setCaptchaSvg(res.data.captchaSvg)
+  // 拉取验证码：点击验证码图片刷新、注册失败后自动换一张，共用这里
+  const refreshCaptcha = () => {
+    axios.get('/api/auth/captcha').then((res) => {
+      setCaptchaId(res.data.captchaId)
+      setCaptchaSvg(res.data.captchaSvg)
+    }).catch(() => {
+      // 拉取失败：响应拦截器已提示，可再次点击验证码图片重试
+    })
   }
 
   useEffect(() => {
-    loadCaptcha()
+    // setState 放进 .then 异步回调里，卸载后不再写入，避免告警与竞态
+    let cancelled = false
+    axios.get('/api/auth/captcha').then((res) => {
+      if (!cancelled) {
+        setCaptchaId(res.data.captchaId)
+        setCaptchaSvg(res.data.captchaSvg)
+      }
+    }).catch(() => {})
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   const handleSubmit = async(e) => { 
@@ -44,26 +58,32 @@ export default function Register({ changeActiveTab }) {
       return
     }
 
-    // loading
+    // loading：请求期间禁用提交按钮，防止重复提交
     setLoading(true)
 
-    // 发请求
-    const res = await axios.post('/api/auth/register', {
-      nickname,
-      phone,
-      captchaCode,
-      password,
-      captchaId
-    })
-    // console.log(res);
-    Toast.show({
-      content: res.data.message,
-      icon: 'success'
-    })
+    try {
+      // 发请求
+      const res = await axios.post('/api/auth/register', {
+        nickname,
+        phone,
+        captchaCode,
+        password,
+        captchaId
+      })
+      Toast.show({
+        content: res.data.message,
+        icon: 'success'
+      })
 
-    changeActiveTab('login', {phone, password})
-
-
+      changeActiveTab('login', {phone, password})
+    } catch {
+      // 失败原因已由响应拦截器统一提示；后端对同一验证码有错误次数上限，
+      // 失败后换一张新验证码并清空输入，避免拿着已失效的验证码反复提交
+      refreshCaptcha()
+      setCaptchaCode('')
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -109,7 +129,7 @@ export default function Register({ changeActiveTab }) {
             className="register-form__captcha-img" 
             title='点击刷新验证码'
             dangerouslySetInnerHTML={{__html: captchaSvg}}
-            onClick={loadCaptcha}
+            onClick={refreshCaptcha}
           ></div>
         </div>
         <div className="register-form__group">

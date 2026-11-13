@@ -24,34 +24,22 @@ export default function Login({ user }) {
       return
     }
 
-    // 向后端请求
-    const res = await axios.post('/api/auth/login', {
-      phone, 
-      password
-    })
-    console.log(res);
-    localStorage.setItem('token', res.data.token)
-    navigate('/')
+    // loading：请求期间禁用提交按钮，防止重复提交
+    setLoading(true)
 
-    
-    // const res = await fetch('http://localhost:3000/api/auth/login', {
-    //   method: 'POST',
-    //   headers: {'Content-Type': 'application/json'},
-    //   body: JSON.stringify({phone, password})
-    // })
-    // const data = await res.json()
-    // console.log(data);
-    // if (data.token) {
-    //   Toast.show({
-    //     icon: 'success',
-    //     content: data.message
-    //   })
-    // } else {
-
-    // }
-    
-    
-
+    try {
+      // 向后端请求
+      const res = await axios.post('/api/auth/login', {
+        phone,
+        password
+      })
+      localStorage.setItem('token', res.data.token)
+      navigate('/')
+    } catch {
+      // 失败原因（密码错误 / 网络异常等）已由响应拦截器统一弹提示
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (

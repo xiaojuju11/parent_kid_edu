@@ -1,49 +1,61 @@
 import './index.less'
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 
-export default function Index({ recognitionResult }) {
-    console.log(recognitionResult);
-  const data = recognitionResult?.data || {}
-  const audioElement = useRef(null)
+// 语音播放按钮：播放状态完全由 <audio> 的播放事件驱动，
+// 并以 audio_url 作为 key —— 换了新的识别结果时组件重建，
+// 播放状态自动归零，不需要在 effect 里手动 setState
+function VoiceButton({ src }) {
+  const audioRef = useRef(null)
   const [isPlaying, setIsPlaying] = useState(false)
 
-  useEffect(() => {
-    setIsPlaying(false)
-  }, [recognitionResult])
-
-  const handleVoicePlay = () => {
-    if (isPlaying) {
-      audioElement.current?.pause()
-      setIsPlaying(false)
+  const togglePlay = () => {
+    const audio = audioRef.current
+    if (!audio) return
+    if (audio.paused) {
+      audio.play()
     } else {
-      audioElement.current?.play()
-      setIsPlaying(true)
+      audio.pause()
     }
   }
-  
-  return <div>
-    {
-      (
-        <div className="object-recognition-result result-container">
-          <div className="object-recognition-result__header">
-            <h2>识别结果</h2>
-            <div className='object-recognition-result__voice' onClick={handleVoicePlay}>
-              <i className='iconfont icon-yinliang-F' style={{ color: isPlaying ? '#ff7a45' : '#515151' }}></i>
-            </div>
-          </div>
-          <div className="object-recognition-result__content">
-            <div className='object-recognition-result__description'>
-              <h4>物品介绍</h4>
-              <p>{data?.image_description || '暂无介绍'}</p>
-            </div>
-            <div className='object-recognition-result__safety'>
-              <h4>安全提示</h4>
-              <p>{data?.safety || '暂无安全提示'}</p>
-            </div>
-          </div>
-          <audio src={data?.audio_url || null} ref={audioElement}></audio>
+
+  return (
+    <div className='object-recognition-result__voice' onClick={togglePlay}>
+      <i
+        className='iconfont icon-yinliang-F'
+        style={{ color: isPlaying ? '#ff7a45' : '#515151' }}
+      ></i>
+      <audio
+        src={src}
+        ref={audioRef}
+        onPlay={() => setIsPlaying(true)}
+        onPause={() => setIsPlaying(false)}
+        onEnded={() => setIsPlaying(false)}
+      ></audio>
+    </div>
+  )
+}
+
+export default function Index({ recognitionResult }) {
+  const data = recognitionResult?.data || {}
+
+  return (
+    <div>
+      <div className="object-recognition-result result-container">
+        <div className="object-recognition-result__header">
+          <h2>识别结果</h2>
+          <VoiceButton key={data?.audio_url || 'none'} src={data?.audio_url || null} />
         </div>
-      )
-    }
-  </div>
+        <div className="object-recognition-result__content">
+          <div className='object-recognition-result__description'>
+            <h4>物品介绍</h4>
+            <p>{data?.image_description || '暂无介绍'}</p>
+          </div>
+          <div className='object-recognition-result__safety'>
+            <h4>安全提示</h4>
+            <p>{data?.safety || '暂无安全提示'}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
 }
